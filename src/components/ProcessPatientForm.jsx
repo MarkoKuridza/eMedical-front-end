@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import axios from 'axios';
+import { jwtDecode } from 'jwt-decode';
 import {Box, Button, Typography, TextField} from '@mui/material';
 
 const API_URL = "http://localhost:9000/api/doctors/process-patient"
@@ -8,14 +9,24 @@ function ProcessPatientForm({patient, onBack}){
     const [patientId] = useState('');
     const [diagnosis, setDiagnosis] = useState('');
     const [prescription, setPrescription] = useState('');
+    const [appointment] = useState(null);
 
     const handleSubmit = async () => {
+
+      const token = localStorage.getItem("token");
+
+      const decoded = jwtDecode(token);
+      const doctorId = decoded.doctorId;
+
         const response = axios.post(API_URL, {
-            patientId : patient.id,
+            
             diagnosis,
-            prescription
+            prescription,
+            appointment,
+            doctorId,
+            patientId : patient.id
         }, {headers : {
-            Authorization : `Bearer ${localStorage.getItem("token")}`
+            Authorization : `Bearer ${token}`
         }
     });
 
@@ -28,10 +39,6 @@ function ProcessPatientForm({patient, onBack}){
     <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Typography variant="h6">Procesiraj pacijenta</Typography>
       
-      <TextField
-        label="ID pacijenta"
-        value={patientId}
-      />
       <TextField
         label="Dijagnoza"
         value={diagnosis}

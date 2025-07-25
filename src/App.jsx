@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import LogInForm from './components/LogInForm';
-import DoctorForm from './components/DoctorForm';
+import DoctorPage from './components/DoctorPage';
 
 function AdminPage(){
     return <h2>ADMINEE</h2>;
@@ -17,7 +17,7 @@ function App(){
             <Routes>
                 <Route path="/" element={<LogInForm />}/>
                 <Route path="/admin" element={<AdminPage />}/>
-                <Route path="/doctor" element={<DoctorForm />}/>
+                <Route path="/doctor" element={<DoctorPage />}/>
                 <Route path="/nurse" element={<NursePage />}/>
             </Routes>
         </BrowserRouter>

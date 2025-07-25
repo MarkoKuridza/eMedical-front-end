@@ -1,11 +1,11 @@
 import React, {useEffect, useState} from 'react';
+import { jwtDecode } from 'jwt-decode';
 import ProcessPatientForm from '../ProcessPatientForm';
 import { Typography, List, ListItem, ListItemButton, ListItemText } from '@mui/material';
 import axios from 'axios';
 
-const API_URL = "http://localhost:9000/patients"
 
-function PatientsView(){
+function DoctorsPatientsView(){
     const [patients, setPatients] = useState([]);
     const [selectedPatient, setSelectedPatient] = useState(null);
 
@@ -14,9 +14,16 @@ function PatientsView(){
     };
 
     useEffect( () => {
+        const token = localStorage.getItem("token");
+        const decoded = jwtDecode(token);
+
+        const doctorId = decoded.doctorId;
+
+        const API_URL = `http://localhost:9000/api/doctors/${doctorId}/patients`
+
         axios.get(API_URL, {
             headers : {
-            Authorization : `Bearer ${localStorage.getItem("token")}`}
+            Authorization : `Bearer ${token}`}
             })
             .then(response => {
                 setPatients(response.data);
@@ -49,4 +56,4 @@ function PatientsView(){
 
 }
 
-export default PatientsView;
+export default DoctorsPatientsView;

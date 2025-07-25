@@ -6,24 +6,21 @@ import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import { CssBaseline, Drawer, Toolbar, Typography } from '@mui/material';
 import AppBar from '@mui/material/AppBar';
-import PatientsView from './views/PatientsView';
+import DoctorsPatientsView from './views/DoctorsPatientsView';
+import DoctorAppointmentPage from './DoctorAppointmentPage';
 
 //dummy podaci
 function MainWindow() {
   return <Typography>Doktoreeee</Typography>;
 }
 
-function AppointmentsView() {
-  return <Typography>Appointments list</Typography>;
-}
-
 function ProcessPatientView() {
-  return <Typography>Processing a patient...</Typography>;
+  return <Typography>Process any patient</Typography>;
 }
 
 const drawerWidth = 240;
 
-function DoctorForm(){
+function DoctorPage(){
     
   const [selectedIndex, setSelectedIndex] = React.useState(1);
 
@@ -36,9 +33,9 @@ function DoctorForm(){
       case 0:
         return <MainWindow />;
       case 1:
-        return <PatientsView />;
+        return <DoctorsPatientsView />;
       case 2:
-        return <AppointmentsView />;
+        return <DoctorAppointmentPage />;
       case 3:
         return <ProcessPatientView />;
       case 4:
@@ -101,4 +98,4 @@ function DoctorForm(){
   );
 }
 
-export default DoctorForm;
+export default DoctorPage;
