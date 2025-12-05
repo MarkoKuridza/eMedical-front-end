@@ -1,44 +1,58 @@
-import React, {useState} from 'react';
+import { useState } from 'react';
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
-import {Box, Button, Typography, TextField} from '@mui/material';
+import { Box, Button, Typography, TextField } from '@mui/material';
 
 const API_URL = "http://localhost:9000/api/doctors/process-patient"
 
-function ProcessPatientForm({patient, onBack}){
-    const [patientId] = useState('');
-    const [diagnosis, setDiagnosis] = useState('');
-    const [prescription, setPrescription] = useState('');
-    const [appointment] = useState(null);
+function ProcessPatientForm({ appointment = null, patientId: propPatientId = null, onBack, onProcessed }) {
 
-    const handleSubmit = async () => {
+  const [diagnosis, setDiagnosis] = useState('');
+  const [prescription, setPrescription] = useState('');
 
+  const handleSubmit = async () => {
+    try {
       const token = localStorage.getItem("token");
 
       const decoded = jwtDecode(token);
       const doctorId = decoded.doctorId;
+      
+      const appointmentId = appointment ? appointment.id : null;
 
-        const response = axios.post(API_URL, {
+      const patientId = appointment ? appointment.patient.id : propPatientId;
+
+      if (!patientId) {
+        console.error("Nije proslijeđen patientId!");
+        return;
+      }
             
-            diagnosis,
-            prescription,
-            appointment,
-            doctorId,
-            patientId : patient.id
-        }, {headers : {
-            Authorization : `Bearer ${token}`
+      const response = await axios.post(API_URL, {
+        diagnosis,
+        prescription,
+        appointmentId,
+        doctorId,
+        patientId
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
         }
-    });
+      });
 
-    
-    console.log(response.data);
-    onBack();
-    };
+      console.log(response.data);
+      if(onProcessed && appointment) {
+        onProcessed(appointment.id);
+      }
 
-    return (
+      onBack();
+    } catch (error) {
+      console.error("Greška pri slanju podataka:", error.response || error);
+    }
+  };
+
+  return (
     <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Typography variant="h6">Procesiraj pacijenta</Typography>
-      
+
       <TextField
         label="Dijagnoza"
         value={diagnosis}
@@ -60,12 +74,8 @@ function ProcessPatientForm({patient, onBack}){
         </Button>
       </Box>
     </Box>
-);
-    
+  );
+
 };
-
-
-
-
 
 export default ProcessPatientForm;

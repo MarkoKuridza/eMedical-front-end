@@ -1,26 +1,37 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LogInForm from './components/LogInForm';
 import DoctorPage from './components/DoctorPage';
+import NursePage from './components/NursePage';
+import ProtectedRoute from './components/ProtectedRoute';
+import {SnackbarProvider} from './context/SnackbarContext';
 
-function AdminPage(){
-    return <h2>ADMINEE</h2>;
+const AdminPage = () => {
+    <h2>Joooj</h2>
 }
 
-function NursePage(){
-    return <h2>SESTROO</h2>
-}
+function App() {
+    return (
+        <SnackbarProvider>
+            <BrowserRouter>
+                <Routes>
+                    <Route path="/login" element={<LogInForm />} />
+                    <Route path="/admin" element={
+                        <ProtectedRoute>
+                            <AdminPage />
+                        </ProtectedRoute>} />
+                    <Route path="/doctor" element={
+                        <ProtectedRoute>
+                            <DoctorPage />
+                        </ProtectedRoute>} />
+                    <Route path="/nurse" element={
+                        <ProtectedRoute>
+                            <NursePage />
+                        </ProtectedRoute>} />
 
-function App(){
-    return(
-        <BrowserRouter>
-            <Routes>
-                <Route path="/" element={<LogInForm />}/>
-                <Route path="/admin" element={<AdminPage />}/>
-                <Route path="/doctor" element={<DoctorPage />}/>
-                <Route path="/nurse" element={<NursePage />}/>
-            </Routes>
-        </BrowserRouter>
+                    <Route path="/" element={<Navigate to="/login" replace />} />
+                </Routes>
+            </BrowserRouter>
+        </SnackbarProvider>
     );
 }
 

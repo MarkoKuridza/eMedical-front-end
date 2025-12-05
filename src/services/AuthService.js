@@ -1,24 +1,24 @@
 import axios from 'axios'
-import { jwtDecode } from 'jwt-decode';
 
-const API_URL = "http://localhost:9000/auth/login"
+axios.defaults.withCredentials = true;
+
+const API_URL = "http://localhost:9000/auth"
 
 const login = async (username, password) => {
-    const response = await axios.post(API_URL, {username, password});
+    const response = await axios.post(`${API_URL}/login`, {username, password});
 
-    const token = response.data.token;
-
-    localStorage.setItem('token', token);
-
-    const decodedToken = jwtDecode(token);
-
-    const role = decodedToken.role?.[0]?.authority || '';
-
-    return role;
+    return response.data.role;
 };
+
+const logout = async() => {
+    await axios.post(`${API_URL}/logout`, {});
+}
 
 const authService = {
     login,
+    logout
 };
+
+
 
 export default authService;

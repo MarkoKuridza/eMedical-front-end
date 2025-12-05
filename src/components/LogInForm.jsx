@@ -1,4 +1,4 @@
-import React, {use, useState} from "react";
+import {useState} from "react";
 import { TextField, Button, Box, Typography, Alert } from '@mui/material';
 import {useNavigate} from 'react-router-dom'
 import authService from '../services/AuthService';
@@ -20,13 +20,13 @@ function LogInForm() {
             const role = await authService.login(credentials.username, credentials.password);
 
             switch(role) {
-              case 'ROLE_ADMIN':
+              case 'ADMIN':
                 navigate('/admin');
                 break;
-              case 'ROLE_DOCTOR':
+              case 'DOCTOR':
                 navigate('/doctor');
                 break;
-              case 'ROLE_NURSE':
+              case 'NURSE':
                 navigate('/nurse');
                 break;
               default:
