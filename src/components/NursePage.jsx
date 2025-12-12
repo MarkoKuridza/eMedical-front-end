@@ -32,11 +32,15 @@ function NursePage() {
         patientId: null,
         doctorId: null,
         appointmentDetails: "",
+        appointmentStatus: "",
     });
     const [updatedAppointment, setUpdatedAppointment] = useState(null);
     const [patients, setPatients] = useState([]);
     const [selectedPatient, setSelectedPatient] = useState(null);
     const { showSnackbar } = useSnackbar();
+
+    const [openEmergencyDialog, setOpenEmergencyDialog] = useState(null);
+
 
     useEffect(() => {
         fetchAppointments();
@@ -61,6 +65,8 @@ function NursePage() {
                         extendedProps: {
                             patientId: a.patientId,
                             doctorId: a.doctorId,
+                            doctorFirstName: a.doctorFirstName,
+                            doctorLastName: a.doctorLastName,
                             status: a.appointmentStatus,
                             details: a.appointmentDetails,
                         },
@@ -82,6 +88,16 @@ function NursePage() {
     };
 
     const handleDateClick = async (info) => {
+        const minutes = info.date.getHours() * 60 + info.date.getMinutes();
+
+        if(!(minutes < 10 * 60 ||
+            (minutes >=10*60 +30 && minutes < 16 * 60) ||
+            (minutes >= 16 * 60 + 30 && minutes < 20 * 60)
+            )
+         ){
+            return;
+         }
+
         setNewAppointment({
             appointmentDate: dayjs(info.date).format("YYYY-MM-DDTHH:mm:ss"),
             appointmentDetails: "",
@@ -119,9 +135,18 @@ function NursePage() {
 
     const handleSaveNewAppointment = async () => {
         try {
+
+            if(openNewApptDialog){
+                newAppointment.appointmentStatus = "SCHEDULED";
+            } else {
+                newAppointment.appointmentStatus = "EMERGENCY";
+            }
             await axios.post(`${API_APPOINTMENT}/create`, newAppointment, { withCredentials: true });
             showSnackbar("Termin uspjesno kreiran", "success");
+
             setOpenNewApptDialog(false);
+            setOpenEmergencyDialog(false);
+
             fetchAppointments();
         } catch (error) {
             showSnackbar("Greska pri kreiranju termina", "error");
@@ -160,6 +185,10 @@ function NursePage() {
 
     }
 
+    const handleWaitingRoomClick = () => {
+        alert("Cekaonicaaaa");
+    }
+
     const handleAppointmentClick = async (info) => {
         const appt = {
             id: info.event.id,
@@ -167,7 +196,8 @@ function NursePage() {
             appointmentDetails: info.event.extendedProps.details,
             patient: info.event.extendedProps.patient,
             patientName: info.event.title,
-            doctorId: info.event.extendedProps.doctorId,
+            doctorFirstName: info.event.extendedProps.doctorFirstName,
+            doctorLastName: info.event.extendedProps.doctorLastName,
             appointmentStatus: info.event.extendedProps.status,
         }
         setSelectedAppointment(appt);
@@ -177,10 +207,23 @@ function NursePage() {
     const appointmentDetailsFields = [
         { label: "Vrijeme termina:", value: (appt) => dayjs(appt.appointmentDate).format("HH:mm") },
         { label: "Pacijent:", value: (appt) => appt.patientName },
-        { label: "Doktor:", value: (appt) => appt.doctorId },
+        { label: "Doktor:", value: (appt) => appt.doctorFirstName + " " + appt.doctorLastName},
         { label: "Detalji termina:", value: (appt) => appt.appointmentDetails },
         { label: "Status:", value: (appt) => appt.appointmentStatus }
     ];
+
+    const handleEmergencyClick = () => {
+
+        setNewAppointment({
+            appointmentDate: dayjs(new Date()).format("YYYY-MM-DDTHH:mm:ss"),
+            appointmentDetails: "",
+            patientId: null,
+            doctorId: null,
+        });
+        setSelectedPatient(null);
+        setOpenEmergencyDialog(true);
+    }
+
 
     return (
         <Box sx={{ p: 3 }}>
@@ -195,6 +238,22 @@ function NursePage() {
                 dateClick={handleDateClick}
                 eventClick={handleAppointmentClick}
                 height="90vh"
+                headerToolbar={{
+                    left: 'prev,next today timeGridWeek,timeGridDay',
+                    center: 'title',
+                    right: 'addEmergencyButton viewWaitingRoomButton'
+                }}
+                customButtons={{
+                    addEmergencyButton: {
+                        id: 'addEmergencyButton',
+                        text: 'Dodaj nezakazan termin',
+                        click: handleEmergencyClick
+                    },
+                    viewWaitingRoomButton: {
+                        text: 'Čekaonica',
+                        click: handleWaitingRoomClick
+                    }
+                }}
                 dayHeaderFormat={{ weekday: 'short', day: 'numeric', month: 'numeric', omitCommas: true }}
                 //sugavu lokalizaciju nisu dobro implementirali...
                 //prevod skracenih naziva dana
@@ -215,17 +274,17 @@ function NursePage() {
                 slotDuration="00:15:00"
                 businessHours={[
                     {
-                        daysOfWeek: [1, 2, 3, 4, 5],
+                        daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
                         startTime: "07:00",
                         endTime: "10:00",
                     },
                     {
-                        daysOfWeek: [1, 2, 3, 4, 5],
+                        daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
                         startTime: "10:30",
                         endTime: "16:00",
                     },
                     {
-                        daysOfWeek: [1, 2, 3, 4, 5],
+                        daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
                         startTime: "16:30",
                         endTime: "20:00",
                     }
@@ -358,6 +417,51 @@ function NursePage() {
                         Sacuvaj
                     </Button>
                     <Button onClick={() => setOpenNewApptDialog(false)} variant="outlined" color="primary">
+                        Otkazi
+                    </Button>
+                </DialogActions>
+            </Dialog>
+            <Dialog open={openEmergencyDialog} onClose={() => setOpenEmergencyDialog(false)}>
+                <DialogTitle>Dodaj nezakazan termin</DialogTitle>
+                <DialogContent dividers>
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                        <TextField
+                            label="Datum i vrijeme termina"
+                            value={dayjs(newAppointment.appointmentDate).format("DD.MM.YYYY. HH:mm")}
+                            onChange={handleFieldChange}
+                            disabled
+                        />
+
+                        <Autocomplete
+                            options={patients}
+                            value={selectedPatient}
+                            onChange={handlePatientSelect}
+                            getOptionLabel={(options) => `${options.first_name} ${options.last_name}`}
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Pacijent"
+                                    placeholder="Pretrazi po imenu..."
+                                />
+                            )}
+                            noOptionsText="Nema pacijenta"
+                            clearOnEscape
+                        />
+
+                        <TextField
+                            label="Detalji termina"
+                            name="appointmentDetails"
+                            multiline
+                            value={newAppointment.appointmentDetails}
+                            onChange={handleFieldChange}
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={handleSaveNewAppointment} variant="contained" color="primary">
+                        Sacuvaj
+                    </Button>
+                    <Button onClick={() => setOpenEmergencyDialog(false)} variant="outlined" color="primary">
                         Otkazi
                     </Button>
                 </DialogActions>

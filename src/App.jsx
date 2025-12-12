@@ -16,17 +16,20 @@ function App() {
                 <Routes>
                     <Route path="/login" element={<LogInForm />} />
                     <Route path="/admin" element={
-                        <ProtectedRoute>
+                        <ProtectedRoute allowedRole={["ADMIN"]}>
                             <AdminPage />
                         </ProtectedRoute>} />
                     <Route path="/doctor" element={
-                        <ProtectedRoute>
+                        <ProtectedRoute allowedRole={["DOCTOR"]}>
                             <DoctorPage />
                         </ProtectedRoute>} />
                     <Route path="/nurse" element={
-                        <ProtectedRoute>
+                        <ProtectedRoute allowedRole={["NURSE"]}>
                             <NursePage />
                         </ProtectedRoute>} />
+                    <Route path="/unauthorized" element={
+                            <h2>DALJE NECES MOCI</h2>
+                        }/>
 
                     <Route path="/" element={<Navigate to="/login" replace />} />
                 </Routes>
