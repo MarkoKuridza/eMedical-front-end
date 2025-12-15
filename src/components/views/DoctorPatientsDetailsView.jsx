@@ -1,38 +1,33 @@
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import { Box, Collapse, TableBody, Paper, Table, IconButton, TableCell, TableContainer, TableHead, TableRow, Typography, Button, Grid, Card, CardContent } from "@mui/material";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import axios from 'axios';
 import dayjs from "dayjs";
 import "dayjs/locale/bs";
 dayjs.locale("bs");
 
+axios.defaults.withCredentials=true;
+
+const API_RECORDS = "http://localhost:9000/api/medical-record"
+
 function DoctorsPatientsDetailsView({ patient, onBack }) {
     const [medicalRecord, setMedicalRecord] = useState([]);
 
-    useEffect(() => {
-        if (!patient?.id) {
-            console.log("Patient nije proslijeđen!");
-            return;
+
+    const fetchMedicalRecords = useCallback( async () => {
+        try{
+            const response = await axios.get(`${API_RECORDS}/${patient.id}`, { withCredentials: true });
+
+            setMedicalRecord(response.data);
+        } catch(err) {
+            console.log("Greska pri dobavljanju zdravstvenog kartona", err);
         }
+    }, [patient]);
 
-        const token = localStorage.getItem("token");
-
-        const API_URL = `http://localhost:9000/api/doctors/patients/${patient.id}/medical-records`
-
-        axios.get(API_URL, {
-            headers: {
-                Authorization: `Bearer ${token}`
-            }
-        })
-            .then(response => {
-                setMedicalRecord(response.data);
-            })
-            .catch(error => {
-                console.log("Greska pri dobavljanju zdravstvenog kartona", error)
-            });
-    }, [patient.id]);
-
+    useEffect(() => {
+        fetchMedicalRecords();        
+    }, [fetchMedicalRecords]);
 
     function Row({ row }) {
         const [open, setOpen] = useState(false);
@@ -85,7 +80,6 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
             </Fragment>
         );
     }
-
 
     return (
         <Box>

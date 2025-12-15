@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { jwtDecode } from 'jwt-decode';
 import DoctorsPatientsDetailsView from '../views/DoctorPatientsDetailsView';
 import { Typography, List, ListItem, ListItemButton, ListItemText, Box, TextField } from '@mui/material';
 import axios from 'axios';
+
+axios.defaults.withCredentials = true;
+
+const API_PATIENTS = "http://localhost:9000/api/patient/patients"
 
 
 function DoctorsPatientsView() {
@@ -21,25 +24,17 @@ function DoctorsPatientsView() {
   );
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const decoded = jwtDecode(token);
-
-    const doctorId = decoded.doctorId;
-
-    const API_URL = `http://localhost:9000/api/doctors/${doctorId}/patients`
-
-    axios.get(API_URL, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
-      .then(response => {
-        setPatients(response.data);
-      })
-      .catch(error => {
-        console.error("Greska pri dobavljanju pacijenata", error);
-      });
+    fetchPatients();
   }, []);
+
+  const fetchPatients = async () => {
+      try{
+      const response = await axios.get(`${API_PATIENTS}`, {withCredentials: true});
+      setPatients(response.data);
+    } catch(err){
+      console.log("Neuspjesno dobavljanje pacijentata", err);
+    }
+  };
 
   return !selectedPatient ? (
     <Box>

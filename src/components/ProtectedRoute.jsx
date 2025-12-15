@@ -7,7 +7,7 @@ const API_URL=`http://localhost:9000/auth/check`
 
 function ProtectedRoute({children, allowedRole}) {
     const [auth, setAuth] = useState(false);
-    const [role, setRole] = useState(null);
+    const [role, setRole] = useState("");
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -31,7 +31,7 @@ function ProtectedRoute({children, allowedRole}) {
         return <Navigate to="/login" replace/>;
     }
 
-    if(allowedRole && !allowedRole.includes(role)){
+    if(allowedRole && !role.includes(allowedRole)){
         return <Navigate to="/unauthorized" replace/>;
     }
      

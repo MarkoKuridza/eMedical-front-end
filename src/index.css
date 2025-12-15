@@ -20,26 +20,3 @@ code {
   background-color: #f4f4f4;
   cursor: not-allowed;
 }
-
-.fc-toolbar .fc-timeGridWeek-button {
-  margin-left: 50px !important;
-}
-
-.fc-toolbar .fc-addEmergencyButton-button {
-  background-color: #ff4d4f;
-  color: #ffffff;
-  border: none;
-}
-
-.fc-toolbar .fc-addEmergencyButton-button:hover {
-  background-color: #ff7070;
-}
-
-.fc-toolbar .fc-viewWaitingRoomButton-button {
-  background-color: #1b1bff;
-  color: #ffffff;
-  border: none;
-}
-.fc-toolbar .fc-viewWaitingRoomButton-button:hover {
-  background-color: #3b3bff;
-}

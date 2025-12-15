@@ -2,7 +2,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography } from "@mui/material";
+import { Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
 import axios from "axios";
 import { useEffect, useState } from "react";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -12,11 +12,13 @@ import srLocale from "@fullcalendar/core/locales/sr"
 import { useSnackbar } from "../context/SnackbarContext";
 import ConfirmDialog from "../context/ConfirmDialog";
 import { DesktopDateTimePicker } from '@mui/x-date-pickers/DesktopDateTimePicker';
+import { useNavigate } from "react-router-dom";
 
 axios.defaults.withCredentials = true;
 
 const API_APPOINTMENT = "http://localhost:9000/api/appointment"
 const API_PATIENTS = "http://localhost:9000/api/patient/patients"
+const API_LOGOUT = "http://localhost:9000/auth/logout"
 
 const latinWeekdaysShort = ["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"];
 
@@ -41,6 +43,7 @@ function NursePage() {
 
     const [openEmergencyDialog, setOpenEmergencyDialog] = useState(null);
 
+    const navigate = useNavigate();
 
     useEffect(() => {
         fetchAppointments();
@@ -224,9 +227,63 @@ function NursePage() {
         setOpenEmergencyDialog(true);
     }
 
+    const handleListItemClick = (event, index) => {
+        switch(index){
+            case 0: 
+                handleWaitingRoomClick();
+                break;
+            case 1:
+                handleEmergencyClick();
+                break;
+            case 2:
+                handleLogOut();
+                break;
+            default:
+                break;
+        }
+    }
+
+    const handleLogOut = async () => {
+        try{
+            axios.post(`${API_LOGOUT}`, {withCredentials: true});
+        } catch(err){
+            console.log("Neuspjesno odjavljivanje");
+        }
+        
+        navigate("/login")        
+    }
 
     return (
-        <Box sx={{ p: 3 }}>
+        <Box sx={{ display:"flex" }}>
+            <Box sx={{ width: 235 }}>
+                <Drawer 
+                    sx={{
+                        width: 240,
+                        flexShrink: 0,
+                        '& .MuiDrawer-paper': {
+                        width: 240,
+                        boxSizing: 'border-box',
+                        },
+                    }}
+                    variant="permanent"
+                    anchor="left"
+                >
+                    <List>
+                        {["Čekaonica", "Dodaj nezakazan termin", "Odjavi se"].map((text, index) => (
+                            <ListItem key={text} disablePadding>
+                                <ListItemButton
+                                    selected={index}
+                                    onClick={(event) => handleListItemClick(event, index)}
+                                >
+                                    <ListItemText primary={text} />
+                                </ListItemButton>
+                            </ListItem>
+                        ))}
+                    </List>
+                </Drawer>
+            </Box>
+
+        <Box sx={{ flexGrow:1, p:1 }}>
             <FullCalendar
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                 initialView="timeGridWeek"
@@ -239,21 +296,11 @@ function NursePage() {
                 eventClick={handleAppointmentClick}
                 height="90vh"
                 headerToolbar={{
-                    left: 'prev,next today timeGridWeek,timeGridDay',
+                    left: '',
                     center: 'title',
-                    right: 'addEmergencyButton viewWaitingRoomButton'
+                    right: 'prev,next today timeGridWeek,timeGridDay'
                 }}
-                customButtons={{
-                    addEmergencyButton: {
-                        id: 'addEmergencyButton',
-                        text: 'Dodaj nezakazan termin',
-                        click: handleEmergencyClick
-                    },
-                    viewWaitingRoomButton: {
-                        text: 'Čekaonica',
-                        click: handleWaitingRoomClick
-                    }
-                }}
+                
                 dayHeaderFormat={{ weekday: 'short', day: 'numeric', month: 'numeric', omitCommas: true }}
                 //sugavu lokalizaciju nisu dobro implementirali...
                 //prevod skracenih naziva dana
@@ -466,6 +513,7 @@ function NursePage() {
                     </Button>
                 </DialogActions>
             </Dialog>
+        </Box>
         </Box>
 
     );
