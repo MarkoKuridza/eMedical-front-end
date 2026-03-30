@@ -27,7 +27,7 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
 
     useEffect(() => {
         fetchMedicalRecords();        
-    }, [fetchMedicalRecords]);
+    }, []);
 
     function Row({ row }) {
         const [open, setOpen] = useState(false);
