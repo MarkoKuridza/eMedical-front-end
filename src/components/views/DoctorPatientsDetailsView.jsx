@@ -2,32 +2,73 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import { Box, Collapse, TableBody, Paper, Table, IconButton, TableCell, TableContainer, TableHead, TableRow, Typography, Button, Grid, Card, CardContent } from "@mui/material";
 import { Fragment, useCallback, useEffect, useState } from "react";
-import axios from 'axios';
 import dayjs from "dayjs";
 import "dayjs/locale/bs";
+
+import { getMedicalRecordByPatientId } from "../../services/medicalRecordService";
 dayjs.locale("bs");
-
-axios.defaults.withCredentials=true;
-
-const API_RECORDS = "http://localhost:9000/api/medical-record"
 
 function DoctorsPatientsDetailsView({ patient, onBack }) {
     const [medicalRecord, setMedicalRecord] = useState([]);
 
-
-    const fetchMedicalRecords = useCallback( async () => {
-        try{
-            const response = await axios.get(`${API_RECORDS}/${patient.id}`, { withCredentials: true });
-
-            setMedicalRecord(response.data);
-        } catch(err) {
-            console.log("Greska pri dobavljanju zdravstvenog kartona", err);
+    const fetchMedicalRecords = useCallback(async () => {
+        try {
+            setMedicalRecord(await getMedicalRecordByPatientId(patient.id));
+        } catch (err) {
+            console.error("Error while fetching medical record", err);
         }
-    }, [patient]);
+    }, [patient.id]);
 
     useEffect(() => {
-        fetchMedicalRecords();        
-    }, []);
+        fetchMedicalRecords();
+    }, [fetchMedicalRecords]);
+
+    return (
+        <Box>
+            <Button variant="contained" onClick={onBack} sx={{ mb: 3 }}>
+                Nazad
+            </Button>
+
+            <Grid container spacing={3}>
+                <Grid>
+                    <Card sx={{ p: 2 }}>
+                        <CardContent>
+                            <Typography variant="h6" gutterBottom>Osnovni podaci</Typography>
+                            <Typography><strong>Ime:</strong> {patient.firstName}</Typography>
+                            <Typography><strong>Prezime:</strong> {patient.lastName}</Typography>
+                        </CardContent>
+                    </Card>
+                </Grid>
+
+                <Grid>
+                    <Typography variant="h6" gutterBottom>Medicinski karton</Typography>
+
+                    <TableContainer component={Paper}>
+                        <Table aria-label="patients medical history">
+                            <TableHead>
+                                <TableRow>
+                                    <TableCell />
+                                    <TableCell><strong>Datum Pregleda</strong></TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {medicalRecord.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={2}>Nema Podataka</TableCell>
+                                    </TableRow>
+                                ) : (
+                                    medicalRecord.map((row) => (
+                                        <Row key={row.createdAt} row={row} />
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                </Grid>
+            </Grid>
+        </Box>
+    );
+
 
     function Row({ row }) {
         const [open, setOpen] = useState(false);
@@ -37,7 +78,6 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
                 <TableRow sx={{ '& > *': { borderBottom: 'unset' } }} >
                     <TableCell>
                         <IconButton
-                            aria-label="expand row"
                             size="small"
                             onClick={() => setOpen(!open)}
                         >
@@ -56,11 +96,12 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
                                 <Typography variant="h6" gutterBottom component="div">
                                     Detalji Pregleda
                                 </Typography>
-                                <Table size="small" aria-label="details">
+                                <Table size="small">
                                     <TableHead>
                                         <TableRow>
                                             <TableCell>Dijagnoza</TableCell>
                                             <TableCell>Recept</TableCell>
+                                            <TableCell>Uputnica</TableCell>
                                             <TableCell>Pregledao Doktor</TableCell>
                                             {/* poslije cu dodati poravnanja */}
                                         </TableRow>
@@ -68,7 +109,8 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
                                     <TableBody>
                                         <TableRow>
                                             <TableCell>{row.diagnosis}</TableCell>
-                                            <TableCell>{row.prescription}</TableCell>
+                                            <TableCell>{row.prescription ?? "-"}</TableCell>
+                                            <TableCell>{row.refferal ?? "-"}</TableCell>
                                             <TableCell>{row.doctorFirstName} {row.doctorLastName}</TableCell>
                                         </TableRow>
                                     </TableBody>
@@ -80,56 +122,6 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
             </Fragment>
         );
     }
-
-    return (
-        <Box>
-            <Button variant="contained" onClick={onBack} sx={{ mb: 3 }}>
-                Nazad
-            </Button>
-
-            <Grid container spacing={3}>
-                <Grid>
-                    <Card sx={{ p: 2 }}>
-                        <CardContent>
-                            <Typography variant="h6" gutterBottom>
-                                Osnovni podaci
-                            </Typography>
-                            <Typography><strong>Ime:</strong> {patient.first_name}</Typography>
-                            <Typography><strong>Prezime:</strong> {patient.last_name}</Typography>
-                            {/* JOS PODATAKA DODATI */}
-                        </CardContent>
-                    </Card>
-                </Grid>
-
-                <Grid>
-                    <Typography variant="h6" gutterBottom>
-                        Medicinski karton
-                    </Typography>
-
-                    <TableContainer component={Paper}>
-                        <Table aria-label="patients medical history">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell />
-                                    <TableCell variant="h6">Datum Pregleda</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {medicalRecord.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={2}>Nema Podataka</TableCell>
-                                    </TableRow>
-                                ) : (medicalRecord.map((row) => (
-                                    <Row key={row.createdAt} row={row} />
-                                ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                </Grid>
-            </Grid>
-        </Box>
-    );
 }
 
 export default DoctorsPatientsDetailsView;

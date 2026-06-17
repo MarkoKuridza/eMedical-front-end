@@ -1,41 +1,22 @@
 import { Navigate } from "react-router-dom";
-import axios from "axios";
-import { useEffect, useState } from "react";
 import { Typography } from "@mui/material";
-
-const API_URL=`http://localhost:9000/auth/check`
+import { useAuth } from "../context/AuthContext";
 
 function ProtectedRoute({children, allowedRole}) {
-    const [auth, setAuth] = useState(false);
-    const [role, setRole] = useState("");
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        axios.get(`${API_URL}`, { withCredentials : true })
-        .then( res => {
-            setAuth(res.data.authenticated);
-            setRole(res.data.role);
-            setLoading(false);
-        })
-        .catch(() => {
-            setAuth(false);
-            setLoading(false);
-        })
-    }, []);
+    const { user, loading } = useAuth();
 
     if(loading) {
-        return <Typography>Loading...</Typography>
+        return <Typography sx={{ mt: 4, textAlign: "center" }}>Loading...</Typography>
     }
 
-    if(!auth) {
+    if(!user) {
         return <Navigate to="/login" replace/>;
     }
 
-    if(allowedRole && !role.includes(allowedRole)){
+    if(allowedRole && !user.role.includes(allowedRole)){
         return <Navigate to="/unauthorized" replace/>;
     }
      
-
     return children;
 }
 

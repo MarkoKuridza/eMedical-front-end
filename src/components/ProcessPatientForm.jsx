@@ -1,73 +1,70 @@
 import { useState } from 'react';
-import axios from 'axios';
-import { jwtDecode } from 'jwt-decode';
 import { Box, Button, Typography, TextField } from '@mui/material';
 
-const API_URL = "http://localhost:9000/api/doctors/process-patient"
+import { useSnackbar } from "../context/SnackbarContext";
+import { finishAppointment } from "../services/medicalRecordService";
 
-function ProcessPatientForm({ appointment = null, patientId: propPatientId = null, onBack, onProcessed }) {
+function ProcessPatientForm({ appointment, onBack, onProcessed }) {
 
-  const [diagnosis, setDiagnosis] = useState('');
-  const [prescription, setPrescription] = useState('');
+  const [diagnosis, setDiagnosis] = useState("");
+  const [prescription, setPrescription] = useState("");
+  const [refferal, setRefferal] = useState("");
+
+  const { showSnackbar } = useSnackbar();
 
   const handleSubmit = async () => {
+    if (!diagnosis.trim()) {
+      showSnackbar("Dijagnoza je obavezna", "warning");
+      return;
+    }
+
     try {
-      const token = localStorage.getItem("token");
-
-      const decoded = jwtDecode(token);
-      const doctorId = decoded.doctorId;
-      
-      const appointmentId = appointment ? appointment.id : null;
-
-      const patientId = appointment ? appointment.patient.id : propPatientId;
-
-      if (!patientId) {
-        console.error("Nije proslijeđen patientId!");
-        return;
-      }
-            
-      const response = await axios.post(API_URL, {
-        diagnosis,
-        prescription,
-        appointmentId,
-        doctorId,
-        patientId
-      }, {
-        headers: {
-          Authorization: `Bearer ${token}`
+      await finishAppointment(
+        appointment.id,
+        {
+          diagnosis,
+          prescription,
+          refferal,
+          emergency: false
         }
-      });
-
-      console.log(response.data);
-      if(onProcessed && appointment) {
-        onProcessed(appointment.id);
-      }
-
-      onBack();
-    } catch (error) {
-      console.error("Greška pri slanju podataka:", error.response || error);
+      );
+      showSnackbar("Pregled uspješno zabilježen", "success");
+      if (onProcessed) onProcessed(appointment.id);
+    } catch (err) {
+      showSnackbar("Greska pri sacuvavanju", "error");
     }
   };
 
   return (
-    <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Typography variant="h6">Procesiraj pacijenta</Typography>
+    <Box sx={{ display: 'flex', flexDirection: "column", gap: 2, maxWidth: 600 }}>
+      <Typography variant="h6">
+        Procesiraj pacijenta:{" "}
+        <strong>{appointment.patientFirstName} {appointment.patientLastName}</strong>
+      </Typography>
 
       <TextField
-        label="Dijagnoza"
+        label="Dijagnoza *"
         value={diagnosis}
         onChange={(e) => setDiagnosis(e.target.value)}
+        multiline minRows={2}
         required
       />
       <TextField
         label="Recept"
         value={prescription}
         onChange={(e) => setPrescription(e.target.value)}
+        multiline minRows={2}
+      />
+      <TextField
+        label="Uputnica"
+        value={refferal}
+        onChange={(e) => setRefferal(e.target.value)}
+        multiline minRows={2}
       />
 
       <Box sx={{ mt: 2 }}>
-        <Button variant="contained" color="primary" onClick={handleSubmit} sx={{ mr: 2 }}>
-          Sačuvaj
+        <Button variant="contained" color="primary" onClick={handleSubmit}>
+          Sačuvaj i završi
         </Button>
         <Button variant="outlined" onClick={onBack}>
           Nazad

@@ -2,9 +2,8 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import { Autocomplete, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
-import axios from "axios";
-import { useEffect, useState } from "react";
+import { Autocomplete, Badge, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Drawer, List, ListItem, ListItemButton, ListItemText, TextField, Typography } from "@mui/material";
+import { useCallback, useEffect, useState } from "react";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
@@ -13,58 +12,67 @@ import { useSnackbar } from "../context/SnackbarContext";
 import ConfirmDialog from "../context/ConfirmDialog";
 import { DesktopDateTimePicker } from '@mui/x-date-pickers/DesktopDateTimePicker';
 import { useNavigate } from "react-router-dom";
-
-axios.defaults.withCredentials = true;
-
-const API_APPOINTMENT = "http://localhost:9000/api/appointment"
-const API_PATIENTS = "http://localhost:9000/api/patient/patients"
-const API_LOGOUT = "http://localhost:9000/auth/logout"
+import { useAuth } from "../context/AuthContext";
+import { useWebSocket } from "../utils/useWebSocket";
+import {
+    getAppointments, createAppointment,
+    updateAppointment, deleteAppointment, markPatientArrived
+} from "../services/appointmentService";
+import { getPatients } from "../services/patientService";
+import authService from "../services/authService";
+import WaitingRoomView from "./views/WaitingRoomView";
+import { getTeamName } from "../services/userService";
 
 const latinWeekdaysShort = ["Pon", "Uto", "Sri", "Čet", "Pet", "Sub", "Ned"];
+const VIEWS = { CALENDAR: "calendar", WAITING_ROOM: "waitingRoom" };
 
 function NursePage() {
+    const [currentView, setCurrentView] = useState(VIEWS.CALENDAR);
     const [appointments, setAppointments] = useState([]);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
+
     const [openDetailsDialog, setOpenDetailsDialog] = useState(false);
     const [openNewApptDialog, setOpenNewApptDialog] = useState(false);
     const [openUpdateDialog, setOpenUpdateDialog] = useState(false);
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+    const [openEmergencyDialog, setOpenEmergencyDialog] = useState(null);
+
     const [newAppointment, setNewAppointment] = useState({
         appointmentDate: null,
         patientId: null,
         doctorId: null,
         appointmentDetails: "",
-        appointmentStatus: "",
     });
     const [updatedAppointment, setUpdatedAppointment] = useState(null);
     const [patients, setPatients] = useState([]);
     const [selectedPatient, setSelectedPatient] = useState(null);
-    const { showSnackbar } = useSnackbar();
+    const [waitingRoomBadge, setWaitingRoomBadge] = useState(0);
 
-    const [openEmergencyDialog, setOpenEmergencyDialog] = useState(null);
+    const [ teamName, setTeamName] = useState("");
+    const { showSnackbar } = useSnackbar();
+    const { user, logout } = useAuth();
 
     const navigate = useNavigate();
 
-    useEffect(() => {
-        fetchAppointments();
-        fetchPatients();
-    }, [])
-
-    const fetchAppointments = async () => {
+    const fetchAppointments = useCallback(async () => {
         try {
-            const response = await axios.get(`${API_APPOINTMENT}/appointments`, { withCredentials: true });
+            //samo da negdje dohvatim i naziv tima
+            const name = await getTeamName(user.teamId);
+            setTeamName(name);
+
+            const data = await getAppointments();
 
             setAppointments(
-                response.data.map((a) => {
+                data.map((a) => {
                     const startTime = dayjs(a.appointmentDate);
                     const endTime = startTime.add(15, "minute");
 
                     return {
                         id: a.id,
-                        title: `${a.patient.first_name} ${a.patient.last_name}`,
+                        title: `${a.patientFirstName} ${a.patientLastName}`,
                         start: startTime.toISOString(),
                         end: endTime.toISOString(),
-                        backgroundColor: "#3788d8",
+                        backgroundColor: statusColor(a.appointmentStatus),
                         extendedProps: {
                             patientId: a.patientId,
                             doctorId: a.doctorId,
@@ -79,27 +87,67 @@ function NursePage() {
         } catch (error) {
             console.error("Greska pri ucitavanju termina", error);
         }
+    }, [user.teamId]);
+
+    const fetchPatients = useCallback(async () => {
+        try {
+            setPatients(await getPatients());
+        } catch (error) {
+            console.error("Greska pri dobavljanju pacijenata", error);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchAppointments();
+        fetchPatients();
+    }, [fetchAppointments, fetchPatients]);
+
+    const handleWsMessage = useCallback((message) => {
+        const { type, payload } = message;
+        const name = `${payload.patientFirstName} ${payload.patientLastName}`;
+
+        if (type === "DOCTOR_FINISHED") {
+            showSnackbar(`Doktor završio pregled — ${name} čeka sestru`, "warning");
+            if (currentView === VIEWS.CALENDAR) setWaitingRoomBadge((n) => n + 1);
+        }
+        if (type === "APPOINTMENT_COMPLETED") fetchAppointments();
+    }, [currentView, fetchAppointments, showSnackbar]);
+
+    const topic = user?.teamId ? `/topic/waiting-room/${user.teamId}` : null;
+    useWebSocket(topic ? [topic] : [], handleWsMessage);
+
+    const handleListItemClick = (_, index) => {
+        switch (index) {
+            case 0: setCurrentView(VIEWS.WAITING_ROOM); setWaitingRoomBadge(0); break;
+            case 1: setCurrentView(VIEWS.CALENDAR); break;
+            case 2: handleEmergencyClick(); break;
+            case 3: handleLogOut(); break;
+            default: break;
+        }
     };
 
-    const fetchPatients = async () => {
+    const handleAddToWaitingRoom = async () => {
+        if (!selectedAppointment) return;
         try {
-            const response = await axios.get(`${API_PATIENTS}`, { withCredentials: true });
-            setPatients(response.data);
-        } catch (error) {
-            console.log("Greska pri dobavljanju pacijenata", error);
+            await markPatientArrived(selectedAppointment.id);
+            showSnackbar("Pacijent dodat u čekaonicu", "success");
+            setOpenDetailsDialog(false);
+            setSelectedAppointment(null);
+            fetchAppointments();
+        } catch (err) {
+            showSnackbar("Greška pri dodavanju u čekaonicu", "error");
         }
     };
 
     const handleDateClick = async (info) => {
         const minutes = info.date.getHours() * 60 + info.date.getMinutes();
 
-        if(!(minutes < 10 * 60 ||
-            (minutes >=10*60 +30 && minutes < 16 * 60) ||
+        if (!(minutes < 10 * 60 ||
+            (minutes >= 10 * 60 + 30 && minutes < 16 * 60) ||
             (minutes >= 16 * 60 + 30 && minutes < 20 * 60)
-            )
-         ){
+        )) {
             return;
-         }
+        }
 
         setNewAppointment({
             appointmentDate: dayjs(info.date).format("YYYY-MM-DDTHH:mm:ss"),
@@ -111,22 +159,15 @@ function NursePage() {
         setOpenNewApptDialog(true);
     };
 
-    const handlePatientSelect = (event, value) => {
+    const handlePatientSelect = (_, value) => {
         setSelectedPatient(value);
-        if (value) {
-            setNewAppointment((prev) => ({
-                ...prev,
-                patientId: value.id,
-                doctorId: value.doctorId,
-            }));
-        } else {
-            setNewAppointment((prev) => ({
-                ...prev,
-                patientId: null,
-                doctorId: null,
-            }));
-        }
+        setNewAppointment((prev) => ({
+            ...prev,
+            patientId: value?.id ?? null,
+            teamId: value?.teamId ?? null,
+        }));
     };
+
 
     const handleFieldChange = (e) => {
         const { name, value } = e.target;
@@ -136,17 +177,13 @@ function NursePage() {
         }));
     };
 
-    const handleSaveNewAppointment = async () => {
+    const handleSaveNewAppointment = async (isEmergency = false) => {
         try {
-
-            if(openNewApptDialog){
-                newAppointment.appointmentStatus = "SCHEDULED";
-            } else {
-                newAppointment.appointmentStatus = "EMERGENCY";
-            }
-            await axios.post(`${API_APPOINTMENT}/create`, newAppointment, { withCredentials: true });
+            await createAppointment({
+                ...newAppointment,
+                appointmentStatus: isEmergency ? "EMERGENCY" : "SCHEDULED",
+            });
             showSnackbar("Termin uspjesno kreiran", "success");
-
             setOpenNewApptDialog(false);
             setOpenEmergencyDialog(false);
 
@@ -158,7 +195,7 @@ function NursePage() {
 
     const handleAppointmentDelete = async () => {
         try {
-            await axios.delete(`${API_APPOINTMENT}/delete/${selectedAppointment.id}`);
+            await deleteAppointment(selectedAppointment.id);
             showSnackbar("Termin uspjesno obrisan", "success");
             fetchAppointments();
             setOpenDeleteDialog(false);
@@ -166,16 +203,17 @@ function NursePage() {
         } catch (error) {
             showSnackbar("Greska pri brisanju termina", "error");
         }
-    }
+    };
 
     const handleAppointmentUpdate = async () => {
         try {
-            const appt = {
-                appointmentDate: updatedAppointment.appointmentDate,
-                appointmentDetails: updatedAppointment.appointmentDetails,
-                appointmentStatus: updatedAppointment.appointmentStatus,
-            }
-            await axios.put(`${API_APPOINTMENT}/update/${updatedAppointment.id}`, appt, { withCredentials: true });
+            await updateAppointment(selectedAppointment.id, {
+                appointmentDate: null
+                    ? dayjs(selectedAppointment.appointmentDate).format("YYYY-MM-DDTHH:mm:ss")
+                    : dayjs(updatedAppointment.appointmentDate).format("YYYY-MM-DDTHH:mm:ss"),
+                appointmentDetails: null ? selectedAppointment.appointmentDetails : updatedAppointment.appointmentDetails,
+                appointmentStatus: null ? selectedAppointment.appointmentStatus : updatedAppointment.appointmentStatus,
+            });
             showSnackbar("Promjene uspjesno sacuvane", "success");
             fetchAppointments();
             setOpenUpdateDialog(false);
@@ -184,16 +222,8 @@ function NursePage() {
         }
     }
 
-    const handleWaitingRoom = async () => {
-
-    }
-
-    const handleWaitingRoomClick = () => {
-        alert("Cekaonicaaaa");
-    }
-
-    const handleAppointmentClick = async (info) => {
-        const appt = {
+    const handleAppointmentClick = (info) => {
+        setSelectedAppointment({
             id: info.event.id,
             appointmentDate: info.event.start,
             appointmentDetails: info.event.extendedProps.details,
@@ -202,23 +232,13 @@ function NursePage() {
             doctorFirstName: info.event.extendedProps.doctorFirstName,
             doctorLastName: info.event.extendedProps.doctorLastName,
             appointmentStatus: info.event.extendedProps.status,
-        }
-        setSelectedAppointment(appt);
+        });
         setOpenDetailsDialog(true);
     };
 
-    const appointmentDetailsFields = [
-        { label: "Vrijeme termina:", value: (appt) => dayjs(appt.appointmentDate).format("HH:mm") },
-        { label: "Pacijent:", value: (appt) => appt.patientName },
-        { label: "Doktor:", value: (appt) => appt.doctorFirstName + " " + appt.doctorLastName},
-        { label: "Detalji termina:", value: (appt) => appt.appointmentDetails },
-        { label: "Status:", value: (appt) => appt.appointmentStatus }
-    ];
-
     const handleEmergencyClick = () => {
-
         setNewAppointment({
-            appointmentDate: dayjs(new Date()).format("YYYY-MM-DDTHH:mm:ss"),
+            appointmentDate: null,
             appointmentDetails: "",
             patientId: null,
             doctorId: null,
@@ -227,158 +247,175 @@ function NursePage() {
         setOpenEmergencyDialog(true);
     }
 
-    const handleListItemClick = (event, index) => {
-        switch(index){
-            case 0: 
-                handleWaitingRoomClick();
-                break;
-            case 1:
-                handleEmergencyClick();
-                break;
-            case 2:
-                handleLogOut();
-                break;
-            default:
-                break;
+    const handleLogOut = async () => {
+        try {
+            await authService.logout();
+        } catch {
         }
+        logout();
+        navigate("/login")
     }
 
-    const handleLogOut = async () => {
-        try{
-            axios.post(`${API_LOGOUT}`, {withCredentials: true});
-        } catch(err){
-            console.log("Neuspjesno odjavljivanje");
-        }
-        
-        navigate("/login")        
-    }
+    const navItems = [
+        { label: "Čekaonica", index: 0 },
+        { label: "Termini", index: 1 },
+        { label: "Dodaj nezakazan termin", index: 2 },
+        { label: "Odjavi se", index: 3 },
+    ];
 
     return (
-        <Box sx={{ display:"flex" }}>
-            <Box sx={{ width: 235 }}>
-                <Drawer 
-                    sx={{
-                        width: 240,
-                        flexShrink: 0,
-                        '& .MuiDrawer-paper': {
-                        width: 240,
-                        boxSizing: 'border-box',
-                        },
-                    }}
-                    variant="permanent"
-                    anchor="left"
-                >
-                    <List>
-                        {["Čekaonica", "Dodaj nezakazan termin", "Odjavi se"].map((text, index) => (
-                            <ListItem key={text} disablePadding>
-                                <ListItemButton
-                                    selected={index}
-                                    onClick={(event) => handleListItemClick(event, index)}
-                                >
-                                    <ListItemText primary={text} />
-                                </ListItemButton>
-                            </ListItem>
-                        ))}
-                    </List>
-                </Drawer>
+        <Box sx={{ display: "flex" }}>
+            <Drawer
+                sx={{
+                    width: 220,
+                    flexShrink: 0,
+                    "& .MuiDrawer-paper": { width: 220, boxSizing: "border-box" }
+                }}
+                variant="permanent"
+                anchor="left"
+            >
+                <Box sx={{ p: 2, borderBottom: "1px solid #e0e0e0" }}>
+                    <Typography variant="subtitle1" fontWeight={700}>eMedical - {teamName}</Typography>
+                    <Typography variant="body2" color="text.secondary">Sestra</Typography>
+                </Box>
+                <List dense>
+                    {navItems.map(({ label, index }) => (
+                        <ListItem key={label} disablePadding>
+                            <ListItemButton
+                                selected={
+                                    (index === 0 && currentView === VIEWS.WAITING_ROOM) ||
+                                    (index === 1 && currentView === VIEWS.CALENDAR)
+                                }
+                                onClick={(e) => handleListItemClick(e, index)}
+                                sx={index === 3 ? { color: "error.main" } : {}}
+                            >
+                                {index === 0 ? (
+                                    <Badge badgeContent={waitingRoomBadge} color="error">
+                                        <ListItemText primary={label} />
+                                    </Badge>
+                                ) : (
+                                    <ListItemText primary={label} />
+                                )}
+                            </ListItemButton>
+                        </ListItem>
+                    ))}
+                </List>
+            </Drawer>
+
+            <Box component="main" sx={{ flexGrow: 1, p: 3, bgcolor: "#f5f5f5", minHeight: "100vh" }}>
+                {currentView === VIEWS.WAITING_ROOM ? (
+                    <WaitingRoomView />
+                ) : (
+                    <FullCalendar
+                        plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                        initialView="timeGridWeek"
+                        locales={srLocale}
+                        locale="sr"
+                        editable
+                        selectable
+                        events={appointments}
+                        dateClick={handleDateClick}
+                        eventClick={handleAppointmentClick}
+                        height="90vh"
+                        headerToolbar={{
+                            left: '',
+                            center: 'title',
+                            right: 'prev,next today timeGridWeek,timeGridDay'
+                        }}
+
+                        dayHeaderFormat={{ weekday: 'short', day: 'numeric', month: 'numeric', omitCommas: true }}
+                        //sugavu lokalizaciju nisu dobro implementirali...
+                        //prevod skracenih naziva dana
+                        dayHeaderContent={(args) => {
+                            const wd = args.date.getDay();
+                            return `${latinWeekdaysShort[(wd + 6) % 7]} ${args.date.getDate()}.`;
+                        }}
+
+                        titleFormat={{ year: 'numeric', month: 'numeric', day: 'numeric' }}
+                        slotLabelFormat={{
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: false
+                        }}
+                        slotMinTime="07:00:00"
+                        slotMaxTime="20:00:00"
+                        slotDuration="00:15:00"
+                        businessHours={[
+                            {
+                                daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+                                startTime: "07:00",
+                                endTime: "10:00",
+                            },
+                            {
+                                daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+                                startTime: "10:30",
+                                endTime: "16:00",
+                            },
+                            {
+                                daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+                                startTime: "16:30",
+                                endTime: "20:00",
+                            }
+                        ]}
+                        allDaySlot={false}
+                        nowIndicator={true}
+                    />
+                )}
             </Box>
 
-        <Box sx={{ flexGrow:1, p:1 }}>
-            <FullCalendar
-                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                initialView="timeGridWeek"
-                locales={srLocale}
-                locale="sr"
-                editable={true}
-                selectable={true}
-                events={appointments}
-                dateClick={handleDateClick}
-                eventClick={handleAppointmentClick}
-                height="90vh"
-                headerToolbar={{
-                    left: '',
-                    center: 'title',
-                    right: 'prev,next today timeGridWeek,timeGridDay'
-                }}
-                
-                dayHeaderFormat={{ weekday: 'short', day: 'numeric', month: 'numeric', omitCommas: true }}
-                //sugavu lokalizaciju nisu dobro implementirali...
-                //prevod skracenih naziva dana
-                dayHeaderContent={(args) => {
-                    const weekday = args.date.getDay();
-                    const dayNumber = args.date.getDate();
-                    return `${latinWeekdaysShort[(weekday + 6) % 7]} ${dayNumber}.`;
-                }}
-
-                titleFormat={{ year: 'numeric', month: 'numeric', day: 'numeric' }}
-                slotLabelFormat={{
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false
-                }}
-                slotMinTime="07:00:00"
-                slotMaxTime="20:00:00"
-                slotDuration="00:15:00"
-                businessHours={[
-                    {
-                        daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-                        startTime: "07:00",
-                        endTime: "10:00",
-                    },
-                    {
-                        daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-                        startTime: "10:30",
-                        endTime: "16:00",
-                    },
-                    {
-                        daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
-                        startTime: "16:30",
-                        endTime: "20:00",
-                    }
-                ]}
-                allDaySlot={false}
-                nowIndicator={true}
-            />
-
-            <Dialog open={!!selectedAppointment && openDetailsDialog} onClose={() => { setSelectedAppointment(null); setOpenDetailsDialog(false); }}>
+            <Dialog
+                open={!!selectedAppointment && openDetailsDialog}
+                onClose={() => { setSelectedAppointment(null); setOpenDetailsDialog(false); }}
+            >
                 <DialogTitle>Detalji termina</DialogTitle>
                 <DialogContent dividers>
                     {selectedAppointment && (
                         <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                            {appointmentDetailsFields.map(({ label, value }) =>
-                                <Typography key={label} variant="body1">
-                                    <Typography component="span" fontWeight="bold">{label} </Typography>
-                                    {value(selectedAppointment)}
+                            {[
+                                { label: "Vrijeme:", value: dayjs(selectedAppointment.appointmentDate).format("HH:mm") },
+                                { label: "Pacijent:", value: selectedAppointment.patientName },
+                                { label: "Doktor:", value: `${selectedAppointment.doctorFirstName} ${selectedAppointment.doctorLastName}` },
+                                { label: "Detalji:", value: selectedAppointment.appointmentDetails },
+                                { label: "Status:", value: selectedAppointment.appointmentStatus },
+                            ].map(({ label, value }) => (
+                                <Typography key={label}>
+                                    <strong>{label}</strong> {value}
                                 </Typography>
-                            )}
+                            ))}
                         </Box>
                     )}
 
-                    <DialogActions>
-                        {/* proslijedi u queue da ne moram rucno kucati */}
-                        <Button variant="contained" color="primary">
+                    <DialogActions sx={{ pt: 2, flexWrap: "wrap", gap: 1 }}>
+                        <Button variant="contained" color="primary" onClick={handleAddToWaitingRoom}>
                             Dodaj u čekaonicu
                         </Button>
-                        <Button onClick={() => {
+                        <Button variant="contained" onClick={() => {
                             setUpdatedAppointment(selectedAppointment);
                             setOpenDetailsDialog(false);
                             setOpenUpdateDialog(true);
-                        }}
-                            variant="contained"
-                        >
+                        }}                        >
                             Azuriraj
                         </Button>
-                        <Button onClick={() => { setOpenDeleteDialog(true) }} variant="contained">
+                        <Button variant="contained" onClick={() => {
+                            setUpdatedAppointment(selectedAppointment);
+                            updatedAppointment.appointmentStatus = "CANCELED";
+                            handleAppointmentUpdate();
+                            setOpenDetailsDialog(false);
+                        }
+                        }>
+                            Otkazi
+                        </Button>
+                        <Button variant="contained" onClick={() => { setOpenDeleteDialog(true) }}>
                             Obrisi
                         </Button>
                         <ConfirmDialog
-                                open={openDeleteDialog}
-                                title={"Obrisati termin?"}
-                                content={"Da li ste sigurno da zelite obrisati termin?"}
-                                onConfirm={() => handleAppointmentDelete(selectedAppointment)}
-                                onCancel={() => setOpenDeleteDialog(false)}
-                            />
-                        <Button onClick={() => { setSelectedAppointment(null); setOpenDetailsDialog(false) }} variant="outlined" color="primary">
+                            open={openDeleteDialog}
+                            title={"Obrisati termin?"}
+                            content={"Da li ste sigurno da zelite obrisati termin?"}
+                            onConfirm={() => handleAppointmentDelete(selectedAppointment)}
+                            onCancel={() => setOpenDeleteDialog(false)}
+                        />
+                        <Button variant="outlined" onClick={() => { setSelectedAppointment(null); setOpenDetailsDialog(false) }}>
                             Zatvori
                         </Button>
                     </DialogActions>
@@ -388,7 +425,7 @@ function NursePage() {
             <Dialog open={openUpdateDialog} onClose={() => setOpenUpdateDialog(false)}>
                 <DialogTitle>Azuriraj termin</DialogTitle>
                 <DialogContent dividers>
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <LocalizationProvider dateAdapter={AdapterDayjs}>
                             <DesktopDateTimePicker
                                 label="Datum i vrijeme termina"
@@ -401,9 +438,8 @@ function NursePage() {
                         </LocalizationProvider>
                         <TextField
                             label="Detalji termina"
-                            name="appointmentDetails"
                             multiline
-                            value={updatedAppointment?.appointmentDetails ? `${updatedAppointment.appointmentDetails}` : ""}
+                            value={updatedAppointment?.appointmentDetails ?? ""}
                             onChange={(d) => setUpdatedAppointment(prev => ({ ...prev, appointmentDetails: d.target.value }))}
                         />
 
@@ -423,99 +459,78 @@ function NursePage() {
                     </Button>
                 </DialogActions>
             </Dialog>
-            <Dialog open={openNewApptDialog} onClose={() => setOpenNewApptDialog(false)}>
-                <DialogTitle>Kreiraj novi termin</DialogTitle>
-                <DialogContent dividers>
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        <TextField
-                            label="Datum i vrijeme termina"
-                            value={dayjs(newAppointment.appointmentDate).format("DD.MM.YYYY. HH:mm")}
-                            onChange={handleFieldChange}
-                            disabled
-                        />
 
-                        <Autocomplete
-                            options={patients}
-                            value={selectedPatient}
-                            onChange={handlePatientSelect}
-                            getOptionLabel={(options) => `${options.first_name} ${options.last_name}`}
-                            renderInput={(params) => (
-                                <TextField
-                                    {...params}
-                                    label="Pacijent"
-                                    placeholder="Pretrazi po imenu..."
-                                />
-                            )}
-                            noOptionsText="Nema pacijenta"
-                            clearOnEscape
-                        />
+            <AppointmentFormDialog
+                open={openNewApptDialog} title="Kreiraj novi termin"
+                appointment={newAppointment}
+                patients={patients}
+                selectedPatient={selectedPatient}
+                onPatientSelect={handlePatientSelect}
+                onFieldChange={handleFieldChange}
+                onSave={() => handleSaveNewAppointment(false)}
+                onClose={() => setOpenNewApptDialog(false)}
+            />
 
-                        <TextField
-                            label="Detalji termina"
-                            name="appointmentDetails"
-                            multiline
-                            value={newAppointment.appointmentDetails}
-                            onChange={handleFieldChange}
-                        />
-                    </Box>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleSaveNewAppointment} variant="contained" color="primary">
-                        Sacuvaj
-                    </Button>
-                    <Button onClick={() => setOpenNewApptDialog(false)} variant="outlined" color="primary">
-                        Otkazi
-                    </Button>
-                </DialogActions>
-            </Dialog>
-            <Dialog open={openEmergencyDialog} onClose={() => setOpenEmergencyDialog(false)}>
-                <DialogTitle>Dodaj nezakazan termin</DialogTitle>
-                <DialogContent dividers>
-                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                        <TextField
-                            label="Datum i vrijeme termina"
-                            value={dayjs(newAppointment.appointmentDate).format("DD.MM.YYYY. HH:mm")}
-                            onChange={handleFieldChange}
-                            disabled
-                        />
-
-                        <Autocomplete
-                            options={patients}
-                            value={selectedPatient}
-                            onChange={handlePatientSelect}
-                            getOptionLabel={(options) => `${options.first_name} ${options.last_name}`}
-                            renderInput={(params) => (
-                                <TextField
-                                    {...params}
-                                    label="Pacijent"
-                                    placeholder="Pretrazi po imenu..."
-                                />
-                            )}
-                            noOptionsText="Nema pacijenta"
-                            clearOnEscape
-                        />
-
-                        <TextField
-                            label="Detalji termina"
-                            name="appointmentDetails"
-                            multiline
-                            value={newAppointment.appointmentDetails}
-                            onChange={handleFieldChange}
-                        />
-                    </Box>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleSaveNewAppointment} variant="contained" color="primary">
-                        Sacuvaj
-                    </Button>
-                    <Button onClick={() => setOpenEmergencyDialog(false)} variant="outlined" color="primary">
-                        Otkazi
-                    </Button>
-                </DialogActions>
-            </Dialog>
+            <AppointmentFormDialog
+                open={openEmergencyDialog} title="Dodaj nezakazan termin"
+                appointment={newAppointment}
+                patients={patients}
+                selectedPatient={selectedPatient}
+                onPatientSelect={handlePatientSelect}
+                onFieldChange={handleFieldChange}
+                onSave={() => handleSaveNewAppointment(true)}
+                onClose={() => setOpenEmergencyDialog(false)}
+            />
         </Box>
-        </Box>
-
     );
 }
+
+function AppointmentFormDialog({ open, title, appointment, patients, selectedPatient,
+    onPatientSelect, onFieldChange, onSave, onClose }) {
+    return (
+        <Dialog open={open} onClose={onClose}>
+            <DialogTitle>{title}</DialogTitle>
+            <DialogContent dividers>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 320 }}>
+                    <TextField
+                        label="Datum i vrijeme termina"
+                        value={appointment.appointmentDate
+                            ? dayjs(appointment.appointmentDate).format("DD.MM.YYYY. HH:mm")
+                            : dayjs(new Date()).format("DD.MM.YYYY. HH:mm")}
+                        disabled
+                    />
+
+                    <Autocomplete
+                        options={patients} value={selectedPatient} onChange={onPatientSelect}
+                        getOptionLabel={(o) => `${o.firstName} ${o.lastName}`}
+                        renderInput={(params) => (
+                            <TextField {...params} label="Pacijent" placeholder="Pretraži po imenu..." />
+                        )}
+                        noOptionsText="Nema pacijenta" clearOnEscape
+                    />
+                    <TextField
+                        label="Detalji termina" name="appointmentDetails" multiline
+                        value={appointment.appointmentDetails} onChange={onFieldChange}
+                    />
+                </Box>
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={onSave} variant="contained">Sačuvaj</Button>
+                <Button onClick={onClose} variant="outlined">Otkaži</Button>
+            </DialogActions>
+        </Dialog>
+    );
+}
+
+
+function statusColor(status) {
+    switch (status) {
+        case "COMPLETED": return "#4caf50";
+        case "CANCELED": return "#f44336";
+        case "WAITING": return "#ff9800";
+        case "EMERGENCY": return "#d32f2f";
+        default: return "#1976d2";
+    }
+}
+
 export default NursePage;

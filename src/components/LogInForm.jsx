@@ -1,43 +1,47 @@
-import {useState} from "react";
+import { useState } from "react";
 import { TextField, Button, Box, Typography, Alert } from '@mui/material';
-import {useNavigate} from 'react-router-dom'
-import authService from '../services/AuthService';
+import { useNavigate } from 'react-router-dom'
+import authService from '../services/authService';
+import { useAuth } from '../context/AuthContext';
 
 function LogInForm() {
-    const [credentials, setCredentials] = useState({username: '', password: ''});
-    const [error, setError] = useState('');
-    const navigate = useNavigate();
+  const [credentials, setCredentials] = useState({ username: "", password: "" });
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+  const { login } = useAuth();
 
-    const handleChange = (e) => {
+  const handleChange = (e) => {
     setCredentials({ ...credentials, [e.target.name]: e.target.value });
-    };
+  };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError('');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
 
-        try {
-            const role = await authService.login(credentials.username, credentials.password);
+    try {
+      const role = await authService.login(credentials.username, credentials.password);
 
-            switch(role) {
-              case 'ADMIN':
-                navigate('/admin');
-                break;
-              case 'DOCTOR':
-                navigate('/doctor');
-                break;
-              case 'NURSE':
-                navigate('/nurse');
-                break;
-              default:
-                setError('Unknown user role');
-            }
-        } catch (err) {
-            setError("Incorrect username or password");
-        }
-    };
+      await login();
 
-    return (
+      switch (role) {
+        case 'ADMIN':
+          navigate('/admin');
+          break;
+        case 'DOCTOR':
+          navigate('/doctor');
+          break;
+        case 'NURSE':
+          navigate('/nurse');
+          break;
+        default:
+          setError('Unknown user role');
+      }
+    } catch (err) {
+      setError("Incorrect username or password");
+    }
+  };
+
+  return (
     <Box maxWidth={400} mx="auto" mt={10} p={3} boxShadow={3} borderRadius={2}>
       <Typography variant="h5" gutterBottom>
         Prijava
