@@ -1,0 +1,17 @@
+import api from "../api/api";
+
+const login = async (username, password) => {
+    const response = await api.post("/auth/login", { username, password });
+    return response.data.role;
+};
+
+const logout = async () => {
+    await api.post("/auth/logout");
+}
+
+const authService = {
+    login,
+    logout
+};
+
+export default authService;
