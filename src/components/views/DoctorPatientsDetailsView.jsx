@@ -36,12 +36,14 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
                             <Typography variant="h6" gutterBottom>Osnovni podaci</Typography>
                             <Typography><strong>Ime:</strong> {patient.firstName}</Typography>
                             <Typography><strong>Prezime:</strong> {patient.lastName}</Typography>
+                            <Typography><strong>JMB:</strong> {patient.jmb}</Typography>
+                            <Typography><strong>PIO Karton:</strong> {patient.pioNumber}</Typography>
                         </CardContent>
                     </Card>
                 </Grid>
 
                 <Grid>
-                    <Typography variant="h6" gutterBottom>Medicinski karton</Typography>
+                    <Typography variant="h5" gutterBottom>Medicinski karton</Typography>
 
                     <TableContainer component={Paper}>
                         <Table aria-label="patients medical history">
@@ -91,12 +93,12 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
 
                 <TableRow>
                     <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={2}>
-                        <Collapse in={open} timeout="auto" unmountOnExit>
+                        <Collapse in={open} timeout="auto">
                             <Box sx={{ margin: 1 }}>
                                 <Typography variant="h6" gutterBottom component="div">
                                     Detalji Pregleda
                                 </Typography>
-                                <Table size="small">
+                                <Table size="medium">
                                     <TableHead>
                                         <TableRow>
                                             <TableCell>Dijagnoza</TableCell>

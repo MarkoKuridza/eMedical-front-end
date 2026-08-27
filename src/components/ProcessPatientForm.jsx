@@ -43,7 +43,7 @@ function ProcessPatientForm({ appointment, onBack, onProcessed }) {
       </Typography>
 
       <TextField
-        label="Dijagnoza *"
+        label="Dijagnoza"
         value={diagnosis}
         onChange={(e) => setDiagnosis(e.target.value)}
         multiline minRows={2}
@@ -54,6 +54,7 @@ function ProcessPatientForm({ appointment, onBack, onProcessed }) {
         value={prescription}
         onChange={(e) => setPrescription(e.target.value)}
         multiline minRows={2}
+        required
       />
       <TextField
         label="Uputnica"

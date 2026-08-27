@@ -4,7 +4,7 @@ import {
     Box, Drawer, List, ListItem, ListItemButton, ListItemText,
     Typography, Button, Dialog, DialogTitle, DialogContent, DialogActions,
     TextField, MenuItem, Select, InputLabel, FormControl,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+    Table, TablePagination, TableSortLabel, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Paper, IconButton, Tooltip, Chip, Card, CardContent, Grid,
 } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -109,12 +109,29 @@ function SummaryView({ summary, doctors, nurses, patients, teams }) {
                                         {doc ? `${doc.firstName} ${doc.lastName}` : <em>Nije dodijeljen</em>}
                                     </TableCell>
                                     <TableCell>
-                                        {pts.length === 0
-                                            ? <em>Nema pacijenata</em>
-                                            : pts.map(p => (
-                                                <Chip key={p.id} label={`${p.firstName} ${p.lastName}`}
-                                                    size="small" sx={{ mr: 0.5, mb: 0.5 }} />
-                                            ))}
+                                        {pts.length === 0 ? (
+                                            <em>Nema pacijenata</em>
+                                        ) : (
+                                            <>
+                                                {pts.slice(0, 8).map((p) => (
+                                                    <Chip
+                                                        key={p.id}
+                                                        label={`${p.firstName} ${p.lastName}`}
+                                                        size="small"
+                                                        sx={{ mr: 0.5, mb: 0.5 }}
+                                                    />
+                                                ))}
+
+                                                {pts.length > 8 && (
+                                                    <Chip
+                                                        label={`...`}
+                                                        size="small"
+                                                        variant="outlined"
+                                                        sx={{ mr: 0.5, mb: 0.5 }}
+                                                    />
+                                                )}
+                                            </>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             );
@@ -128,41 +145,157 @@ function SummaryView({ summary, doctors, nurses, patients, teams }) {
 
 //CRUD
 function CrudTable({ title, columns, rows, onAdd, onEdit, onDelete }) {
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(10);
+
+    const [sortBy, setSortBy] = useState(null);
+    const [sortDirection, setSortDirection] = useState("asc");
+
+    const handleSort = (key) => {
+        if (sortBy === key) {
+            setSortDirection((prev) =>
+                prev === "asc" ? "desc" : "asc"
+            );
+        } else {
+            setSortBy(key);
+            setSortDirection("asc");
+        }
+
+        setPage(0);
+    };
+
+    const sortedRows = [...rows].sort((a, b) => {
+        if (!sortBy) return 0;
+
+        const aValue = a[sortBy];
+        const bValue = b[sortBy];
+
+        if (aValue == null) return 1;
+        if (bValue == null) return -1;
+
+        const comparison = String(aValue).localeCompare(
+            String(bValue),
+            "bs",
+            {
+                numeric: true,
+                sensitivity: "base",
+            }
+        );
+
+        return sortDirection === "asc"
+            ? comparison
+            : -comparison;
+    });
+
+    const paginatedRows =
+        rowsPerPage === -1
+            ? sortedRows
+            : sortedRows.slice(
+                page * rowsPerPage,
+                page * rowsPerPage + rowsPerPage
+            );
+
+    const handleChangePage = (_, newPage) => {
+        setPage(newPage);
+    };
+
+    const handleChangeRowsPerPage = (event) => {
+        setRowsPerPage(parseInt(event.target.value, 10));
+        setPage(0);
+    };
+
     return (
         <Box>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h5">{title}</Typography>
-                <Button variant="contained" startIcon={<AddIcon />} onClick={onAdd}>Dodaj</Button>
+            <Box
+                display="flex"
+                justifyContent="space-between"
+                alignItems="center"
+                mb={2}
+            >
+                <Typography variant="h5">
+                    {title}
+                </Typography>
+
+                <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={onAdd}
+                >
+                    Dodaj
+                </Button>
             </Box>
+
             <TableContainer component={Paper}>
                 <Table size="small">
                     <TableHead>
                         <TableRow>
-                            {columns.map(c => <TableCell key={c.key}>{c.label}</TableCell>)}
-                            <TableCell align="right">Akcije</TableCell>
+                            {columns.map((c) => (
+                                <TableCell key={c.key}>
+                                    <TableSortLabel
+                                        active={sortBy === c.key}
+                                        direction={
+                                            sortBy === c.key
+                                                ? sortDirection
+                                                : "asc"
+                                        }
+                                        onClick={() =>
+                                            handleSort(c.key)
+                                        }
+                                    >
+                                        {c.label}
+                                    </TableSortLabel>
+                                </TableCell>
+                            ))}
+
+                            <TableCell align="right">
+                                Akcije
+                            </TableCell>
                         </TableRow>
                     </TableHead>
+
                     <TableBody>
                         {rows.length === 0 && (
                             <TableRow>
-                                <TableCell colSpan={columns.length + 1} align="center">
+                                <TableCell
+                                    colSpan={columns.length + 1}
+                                    align="center"
+                                >
                                     <em>Nema podataka</em>
                                 </TableCell>
                             </TableRow>
                         )}
-                        {rows.map((row, i) => (
-                            <TableRow key={row.id ?? row.teamId ?? i} hover>
-                                {columns.map(c => (
-                                    <TableCell key={c.key}>{c.render ? c.render(row) : row[c.key]}</TableCell>
+
+                        {paginatedRows.map((row, i) => (
+                            <TableRow
+                                key={row.id ?? row.teamId ?? i}
+                                hover
+                            >
+                                {columns.map((c) => (
+                                    <TableCell key={c.key}>
+                                        {c.render
+                                            ? c.render(row)
+                                            : row[c.key]}
+                                    </TableCell>
                                 ))}
+
                                 <TableCell align="right">
                                     <Tooltip title="Uredi">
-                                        <IconButton size="small" onClick={() => onEdit(row)}>
+                                        <IconButton
+                                            size="small"
+                                            onClick={() => onEdit(row)}
+                                        >
                                             <EditIcon fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
+
                                     <Tooltip title="Obriši">
-                                        <IconButton size="small" color="error" onClick={() => onDelete(row)}>
+                                        <IconButton
+                                            size="small"
+                                            color="error"
+                                            onClick={() =>
+                                                onDelete(row)
+                                            }
+                                        >
                                             <DeleteIcon fontSize="small" />
                                         </IconButton>
                                     </Tooltip>
@@ -171,6 +304,33 @@ function CrudTable({ title, columns, rows, onAdd, onEdit, onDelete }) {
                         ))}
                     </TableBody>
                 </Table>
+
+                {rows.length > 0 && (
+                    <TablePagination
+                        component="div"
+                        rowsPerPageOptions={[
+                            10,
+                            25,
+                            50,
+                            { label: "Svi", value: -1 },
+                        ]}
+                        count={rows.length}
+                        rowsPerPage={rowsPerPage}
+                        page={page}
+                        onPageChange={handleChangePage}
+                        onRowsPerPageChange={
+                            handleChangeRowsPerPage
+                        }
+                        labelRowsPerPage="Broj po stranici:"
+                        labelDisplayedRows={({
+                            from,
+                            to,
+                            count,
+                        }) =>
+                            `${from}–${to} od ${count}`
+                        }
+                    />
+                )}
             </TableContainer>
         </Box>
     );
