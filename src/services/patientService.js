@@ -5,6 +5,11 @@ export const getPatients = async () => {
     return response.data;
 };
 
+export const editDoctorNotice = async (id, payload) => {
+    const response = await api.put(`/api/patients/edit-doc-notice/${id}`, payload);
+    return response.data;
+}
+
 
 // export const getPatientById = async (id) => {
 //     const response = await api.get(`/api/patient/${id}`);

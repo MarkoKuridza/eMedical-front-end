@@ -1,15 +1,30 @@
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import { Box, Collapse, TableBody, Paper, Table, IconButton, TableCell, TableContainer, TableHead, TableRow, Typography, Button, Grid, Card, CardContent } from "@mui/material";
+import { Box, Collapse, TableBody, Paper, Table, IconButton, TableCell, TableContainer, TableHead, TableRow, Typography, Button, Grid, Card, CardContent, Dialog, DialogTitle, DialogContent, TextField, DialogActions } from "@mui/material";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import dayjs from "dayjs";
 import "dayjs/locale/bs";
 
 import { getMedicalRecordByPatientId } from "../../services/medicalRecordService";
+import { editDoctorNotice } from "../../services/patientService";
 dayjs.locale("bs");
 
 function DoctorsPatientsDetailsView({ patient, onBack }) {
     const [medicalRecord, setMedicalRecord] = useState([]);
+    const [open, setOpen] = useState(false);
+    const [notice, setNotice] = useState(patient.doctorNotice || "");
+    const [saving, setSaving] = useState(false);
+
+    const handleOpen = () => {
+        setNotice(patient.doctorNotice || "");
+        setOpen(true);
+    };
+
+    const handleClose = () => {
+        if (!saving) {
+            setOpen(false);
+        }
+    };
 
     const fetchMedicalRecords = useCallback(async () => {
         try {
@@ -18,6 +33,21 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
             console.error("Error while fetching medical record", err);
         }
     }, [patient.id]);
+
+    const handleSave = async () => {
+        setSaving(true);
+
+        try {
+            await editDoctorNotice(patient.id, {
+                doctorNotice: notice,
+            });
+            setOpen(false);
+        } catch (error) {
+            console.error("Failed to update notice:", error);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     useEffect(() => {
         fetchMedicalRecords();
@@ -30,7 +60,7 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
             </Button>
 
             <Grid container spacing={3}>
-                <Grid>
+                <Grid size={4}>
                     <Card sx={{ p: 2 }}>
                         <CardContent>
                             <Typography variant="h6" gutterBottom>Osnovni podaci</Typography>
@@ -38,8 +68,70 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
                             <Typography><strong>Prezime:</strong> {patient.lastName}</Typography>
                             <Typography><strong>JMB:</strong> {patient.jmb}</Typography>
                             <Typography><strong>PIO Karton:</strong> {patient.pioNumber}</Typography>
+                            <Typography><strong>Telefon:</strong> {patient.phoneNumber}</Typography>
+                            <Typography><strong>Adresa:</strong> {patient.address}</Typography>
                         </CardContent>
                     </Card>
+                    <br></br>
+                    <>
+                        <Card sx={{p: 2}}>
+                            <CardContent>
+                                <Typography sx={{
+                                    overflowWrap: "anywhere",
+                                    wordBreak: "break-word",
+                                    whiteSpace: "pre-wrap",
+                                }}><strong>Napomena:</strong><br /><br /> {notice}</Typography>
+                                
+                                <hr />
+                                <Button
+                                    variant="contained"
+                                    onClick={handleOpen}
+                                    sx={{ mt: 1 }}
+                                >
+                                    Izmijeni
+                                </Button>
+
+                            </CardContent>
+                        </Card>
+                        <Dialog
+                            open={open}
+                            onClose={handleClose}
+                            fullWidth
+                            maxWidth="sm"
+                        >
+                            <DialogTitle>Izmijeni napomenu</DialogTitle>
+
+                            <DialogContent>
+                                <TextField
+                                    autoFocus
+                                    fullWidth
+                                    multiline
+                                    minRows={5}
+                                    value={notice}
+                                    onChange={(e) => setNotice(e.target.value)}
+                                    sx={{ mt: 1 }}
+                                    disabled={saving}
+                                />
+                            </DialogContent>
+
+                            <DialogActions>
+                                <Button
+                                    onClick={handleClose}
+                                    disabled={saving}
+                                >
+                                    Otkaži
+                                </Button>
+
+                                <Button
+                                    variant="contained"
+                                    onClick={handleSave}
+                                    disabled={saving}
+                                >
+                                    {saving ? "Čuvanje..." : "Sačuvaj"}
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
+                    </>
                 </Grid>
 
                 <Grid>

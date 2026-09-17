@@ -111,7 +111,6 @@ function NursePage() {
     
 
     const filteredAppointments = appointments.filter((a) => {
-        console.log(a);
         const doctorName =
             `${a.extendedProps.doctorFirstName ?? ""} ${a.extendedProps.doctorLastName ?? ""}`
             .trim()
@@ -548,8 +547,6 @@ function NursePage() {
 function AppointmentFormDialog({ open, title, appointment, patients, selectedPatient, selectedDoctor,
     onPatientSelect, onFieldChange, onSave, onClose }) {
         
-        console.log(selectedPatient);
-
     return (
         <Dialog open={open} onClose={onClose}>
             <DialogTitle>{title}</DialogTitle>

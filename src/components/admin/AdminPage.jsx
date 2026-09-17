@@ -33,7 +33,7 @@ const navItems = [
 
 const emptyDoctor = { username: "", password: "", firstName: "", lastName: "", jmb: "", specialization: "", teamId: "" };
 const emptyNurse = { username: "", password: "", firstName: "", lastName: "", jmb: "", teamId: "" };
-const emptyPatient = { firstName: "", lastName: "", jmb: "", pioNumber: "", teamId: "" };
+const emptyPatient = { firstName: "", lastName: "", jmb: "", pioNumber: "", phoneNumber: "", address: "", teamId: "" };
 const emptyTeam = { teamName: "" };
 
 function Field({ label, name, value, onChange, type = "text", required = false }) {
@@ -466,6 +466,8 @@ function AdminPage() {
         { key: "lastName", label: "Prezime" },
         { key: "jmb", label: "Jmb" },
         { key: "pioNumber", label: "PIO Karton" },
+        { key: "phoneNumber", label: "Telefon"},
+        { key: "address", label: "Adresa stanovanja"},
         { key: "teamId", label: "Tim", render: r => teamName(r.teamId) },
     ];
     const teamCols = [
@@ -515,6 +517,8 @@ function AdminPage() {
                 <Field label="Prezime" name="lastName" value={formData.lastName} onChange={handleFieldChange} required />
                 <Field label="JMB" name="jmb" value={formData.jmb} onChange={handleFieldChange} required />
                 <Field label="PIO Karton" name="pioNumber" value={formData.pioNumber} onChange={handleFieldChange} required />
+                <Field label="Telefon" name="phoneNumber" value={formData.phoneNumber} onChange={handleFieldChange} />
+                <Field label="Adresa stanovanja" name="address" value={formData.address} onChange={handleFieldChange} required />
                 <TeamSelect value={formData.teamId} onChange={handleFieldChange} teams={teams} label="Tim *" />
             </Box>
         );
