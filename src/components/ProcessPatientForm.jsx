@@ -1,19 +1,38 @@
-import { useState } from 'react';
-import { Box, Button, Typography, TextField } from '@mui/material';
+import { useState, useEffect } from 'react';
+import { Box, Button, Typography, TextField, Autocomplete, CircularProgress } from '@mui/material';
 
 import { useSnackbar } from "../context/SnackbarContext";
-import { finishAppointment } from "../services/medicalRecordService";
+import { finishAppointment, getDiagnoses } from "../services/medicalRecordService";
 
 function ProcessPatientForm({ appointment, onBack, onProcessed }) {
 
   const [diagnosis, setDiagnosis] = useState("");
+  const [selectedDiagnosis, setSelectedDiagnosis] = useState(null);
+  const [description, setDescription] = useState("");
   const [prescription, setPrescription] = useState("");
   const [refferal, setRefferal] = useState("");
 
+  const [loadingDiagnoses, setLoadingDiagnoses] = useState(true);
+
   const { showSnackbar } = useSnackbar();
 
+  useEffect(() => {
+    const loadDiagnoses = async () => {
+      try {
+        const data = await getDiagnoses();
+        setDiagnosis(data);
+      } catch (err) {
+        showSnackbar("Greška pri učitavanju dijagnoza", "error");
+      } finally {
+        setLoadingDiagnoses(false);
+      }
+    };
+
+    loadDiagnoses();
+  }, [showSnackbar]);
+
   const handleSubmit = async () => {
-    if (!diagnosis.trim()) {
+    if (!selectedDiagnosis) {
       showSnackbar("Dijagnoza je obavezna", "warning");
       return;
     }
@@ -22,7 +41,8 @@ function ProcessPatientForm({ appointment, onBack, onProcessed }) {
       await finishAppointment(
         appointment.id,
         {
-          diagnosis,
+          diagnosis: selectedDiagnosis.code,
+          description,
           prescription,
           refferal,
           emergency: false
@@ -42,12 +62,76 @@ function ProcessPatientForm({ appointment, onBack, onProcessed }) {
         <strong>{appointment.patientFirstName} {appointment.patientLastName}</strong>
       </Typography>
 
+      <Autocomplete
+        options={diagnosis}
+        value={selectedDiagnosis}
+        onChange={(event, newValue) => {
+          setSelectedDiagnosis(newValue);
+        }}
+        loading={loadingDiagnoses}
+        getOptionLabel={(option) =>
+          `${option.code} - ${option.name}`
+        }
+        isOptionEqualToValue={(option, value) =>
+          option.code === value.code
+        }
+        filterOptions={(options, { inputValue }) => {
+          const search = inputValue.toLowerCase().trim();
+
+          const results = options
+            .map((option) => {
+              const code = option.code.toLowerCase();
+              const name = option.name.toLowerCase();
+
+              let score = 0;
+
+              if (code === search) {
+                score = 100;
+              }
+              else if (code.startsWith(search)) {
+                score = 80;
+              }
+              else if (name.startsWith(search)) {
+                score = 70;
+              }
+              else if (code.includes(search)) {
+                score = 50;
+              }
+              else if (name.includes(search)) {
+                score = 40;
+              }
+
+              return {option, score};
+            }).filter((result) => result.score > 0).sort((a, b) => b.score - a.score).slice(0, 100);
+
+          return results.map((result) => result.option);
+        }}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label="Dijagnoza"
+            placeholder="Unesite šifru ili naziv dijagnoze"
+            required
+            InputProps={{
+              ...params.InputProps,
+              endAdornment: (
+                <>
+                  {loadingDiagnoses ? (
+                    <CircularProgress color="inherit" size={20} />
+                  ) : null}
+                  {params.InputProps.endAdornment}
+                </>
+              )
+            }}
+          />
+        )}
+      />
       <TextField
-        label="Dijagnoza"
-        value={diagnosis}
-        onChange={(e) => setDiagnosis(e.target.value)}
-        multiline minRows={2}
-        required
+        label="Opis"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        multiline
+        minRows={3}
       />
       <TextField
         label="Recept"

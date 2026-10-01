@@ -5,15 +5,29 @@ import { Fragment, useCallback, useEffect, useState } from "react";
 import dayjs from "dayjs";
 import "dayjs/locale/bs";
 
-import { getMedicalRecordByPatientId } from "../../services/medicalRecordService";
+import { getMedicalRecordByPatientId, getDiagnoses } from "../../services/medicalRecordService";
 import { editDoctorNotice } from "../../services/patientService";
 dayjs.locale("bs");
 
 function DoctorsPatientsDetailsView({ patient, onBack }) {
+    const [diagnoses, setDiagnoses] = useState([]);
     const [medicalRecord, setMedicalRecord] = useState([]);
     const [open, setOpen] = useState(false);
     const [notice, setNotice] = useState(patient.doctorNotice || "");
     const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+    const fetchDiagnoses = async () => {
+        try {
+            const data = await getDiagnoses();
+            setDiagnoses(data);
+        } catch (error) {
+            console.error("Error while fetching diagnoses", error);
+        }
+    };
+
+    fetchDiagnoses();
+    }, []);
 
     const handleOpen = () => {
         setNotice(patient.doctorNotice || "");
@@ -167,6 +181,10 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
     function Row({ row }) {
         const [open, setOpen] = useState(false);
 
+        const diagnosisInfo = diagnoses.find(
+            (diagnosis) => diagnosis.code === row.diagnosis
+        );
+
         return (
             <Fragment>
                 <TableRow sx={{ '& > *': { borderBottom: 'unset' } }} >
@@ -194,6 +212,7 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
                                     <TableHead>
                                         <TableRow>
                                             <TableCell>Dijagnoza</TableCell>
+                                            <TableCell>Opis</TableCell>
                                             <TableCell>Recept</TableCell>
                                             <TableCell>Uputnica</TableCell>
                                             <TableCell>Pregledao Doktor</TableCell>
@@ -202,7 +221,10 @@ function DoctorsPatientsDetailsView({ patient, onBack }) {
                                     </TableHead>
                                     <TableBody>
                                         <TableRow>
-                                            <TableCell>{row.diagnosis}</TableCell>
+                                            <TableCell>{row.diagnosis}
+                                                {diagnosisInfo && ` ${diagnosisInfo.name}`}
+                                            </TableCell>
+                                            <TableCell>{row.description ?? "-"}</TableCell>
                                             <TableCell>{row.prescription ?? "-"}</TableCell>
                                             <TableCell>{row.refferal ?? "-"}</TableCell>
                                             <TableCell>{row.doctorFirstName} {row.doctorLastName}</TableCell>

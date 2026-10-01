@@ -14,3 +14,8 @@ export const getMedicalRecordByAppointmentId = async (appointmentId) => {
     const response = await api.get(`/api/medical-record/appointment/${appointmentId}`);
     return response.data;
 };
+
+export const getDiagnoses = async () => {
+    const response = await api.get(`/api/diagnoses/all`);
+    return response.data;
+}
