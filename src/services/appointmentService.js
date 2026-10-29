@@ -39,3 +39,8 @@ export const startAppointment = async (id) => {
     const response = await api.put(`/api/doctors/appointments/${id}/start`);
     return response.data;
 }
+
+export const getAppointmentsByDate = async (startDate) => {
+    const response = await api.get(`/api/appointment/all-appointments-time`, { params: { start: startDate}});
+    return response.data;
+}

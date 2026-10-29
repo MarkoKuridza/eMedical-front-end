@@ -7,6 +7,19 @@ import {
     Table, TablePagination, TableSortLabel, TableBody, TableCell, TableContainer, TableHead, TableRow,
     Paper, IconButton, Tooltip, Chip, Card, CardContent, Grid,
 } from "@mui/material";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import dayjs from "dayjs";
+import "dayjs/locale/bs";
+import {
+    PieChart,
+    Pie,
+    Cell,
+    Tooltip as ChartTooltip,
+    Legend,
+    ResponsiveContainer,
+} from "recharts";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import AddIcon from "@mui/icons-material/Add";
@@ -20,6 +33,7 @@ import {
     updateDoctor, updateNurse, updatePatient, updateTeam,
     deleteDoctor, deleteNurse, deletePatient, deleteTeam,
 } from "../../services/adminService";
+import { getAppointmentsByDate } from "../../services/appointmentService";
 
 const VIEWS = { SUMMARY: "summary", DOCTORS: "doctors", NURSES: "nurses", PATIENTS: "patients", TEAMS: "teams" };
 const navItems = [
@@ -62,6 +76,156 @@ function TeamSelect({ value, onChange, teams, name = "teamId", label = "Tim" }) 
     );
 }
 
+const STATUS_COLORS = {
+    SCHEDULED: "#1976d2",
+    WAITING: "#ed6c02",
+    IN_PROGRESS: "#9c27b0",
+    PENDING_NURSE_COMPLETION: "#0288d1",
+    COMPLETED: "#2e7d32",
+    CANCELED: "#d32f2f",
+    ARRIVED: "#00897b",
+    EMERGENCY: "#c62828",
+};
+
+const STATUS_LABELS = {
+    SCHEDULED: "Zakazan",
+    WAITING: "Na čekanju",
+    IN_PROGRESS: "U toku",
+    PENDING_NURSE_COMPLETION: "Čeka završetak sestre",
+    COMPLETED: "Završen",
+    CANCELED: "Otkazan",
+    ARRIVED: "Stigao",
+    EMERGENCY: "Hitni slučaj",
+};
+
+function AppointmentPieChart() {
+    const [startDate, setStartDate] = useState(
+        `${new Date().getFullYear()}-01-01`
+    );
+    const [appointments, setAppointments] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    const fetchAppointments = useCallback(async () => {
+        if (!startDate) return;
+
+        setLoading(true);
+        setError("");
+
+        try {
+            const data = await getAppointmentsByDate(startDate);
+            setAppointments(Array.isArray(data) ? data : []);
+        } catch (err) {
+            setError(err.message || "Greška pri učitavanju termina.");
+        } finally {
+            setLoading(false);
+        }
+    }, [startDate]);
+
+    useEffect(() => {
+        fetchAppointments();
+    }, [fetchAppointments]);
+
+    const chartData = Object.entries(
+        appointments.reduce((counts, appointment) => {
+            const status = appointment.appointmentStatus;
+
+            if (status) {
+                counts[status] = (counts[status] || 0) + 1;
+            }
+
+            return counts;
+        }, {})
+    ).map(([status, count]) => ({
+        name: STATUS_LABELS[status] || status,
+        status,
+        value: count,
+    }));
+
+    return (
+        <Card sx={{ mt: 4 }}>
+            <CardContent>
+                <Typography variant="h6" mb={2}>
+                    Statistika termina po statusu
+                </Typography>
+
+                <LocalizationProvider
+                    dateAdapter={AdapterDayjs}
+                    adapterLocale="bs"
+                >
+                    <DatePicker
+                        label="Početni datum"
+                        format="DD.MM.YYYY"
+                        value={startDate ? dayjs(startDate) : null}
+                        onChange={(newValue) => {
+                            if (newValue && newValue.isValid()) {
+                                setStartDate(newValue.format("YYYY-MM-DD"));
+                            } else if (newValue === null) {
+                                setStartDate("");
+                            }
+                        }}
+                        slotProps={{
+                            textField: {
+                                size: "small",
+                                sx: { mb: 3, minWidth: 220 },
+                            },
+                        }}
+                    />
+                </LocalizationProvider>
+
+                <Typography variant="h4" fontWeight={700} mb={2}>
+                    Ukupno termina: {appointments.length}
+                </Typography>
+
+                {loading && <Typography>Učitavanje...</Typography>}
+
+                {error && (
+                    <Typography color="error">{error}</Typography>
+                )}
+
+                {!loading && !error && chartData.length === 0 && (
+                    <Typography color="text.secondary">
+                        Nema termina za odabrani datum.
+                    </Typography>
+                )}
+
+                {!loading && !error && chartData.length > 0 && (
+                    <Box sx={{ width: "100%", height: 400, minWidth: 0 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={chartData}
+                                    dataKey="value"
+                                    nameKey="name"
+                                    cx="50%"
+                                    cy="50%"
+                                    outerRadius={120}
+                                    label={({ name, value }) =>
+                                        `${name}: ${value}`
+                                    }
+                                >
+                                    {chartData.map((entry) => (
+                                        <Cell
+                                            key={entry.status}
+                                            fill={
+                                                STATUS_COLORS[entry.status] ||
+                                                "#757575"
+                                            }
+                                        />
+                                    ))}
+                                </Pie>
+
+                                <ChartTooltip />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </Box>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 //Summary
 function SummaryView({ summary, doctors, nurses, patients, teams }) {
     const cards = [
@@ -87,6 +251,8 @@ function SummaryView({ summary, doctors, nurses, patients, teams }) {
                     </Grid>
                 ))}
             </Grid>
+
+            <AppointmentPieChart />
 
             <Typography variant="h6" mt={4} mb={1}>Timovi i sastav</Typography>
             <TableContainer component={Paper}>
